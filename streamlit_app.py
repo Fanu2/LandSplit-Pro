@@ -16,10 +16,13 @@ def parse_fraction(frac_str):
 
 # Helper to convert total marla to Kanal-Marla-Sarshai
 def marla_to_kms(total_marla):
-    kanal = int(total_marla // 20)
+    total_kanal = total_marla / 20
+    killa = int(total_kanal // 8)
+    kanal = int(total_kanal % 8)
     marla = int(total_marla % 20)
     sarshai = int(round((total_marla - int(total_marla)) * 9))
-    return kanal, marla, sarshai
+    return killa, kanal, marla, sarshai
+
 
 # User input for total area
 st.sidebar.header("Total Area Input")
@@ -54,10 +57,13 @@ if 'df' in locals():
 
         # Convert marla share to K-M-S
         conversions = df['Total Marla Share'].apply(marla_to_kms)
-        df['Kanal'] = conversions.apply(lambda x: x[0])
-        df['Marla'] = conversions.apply(lambda x: x[1])
-        df['Sarshai'] = conversions.apply(lambda x: x[2])
-        df['Result Text'] = df.apply(lambda x: f"0K-{x['Kanal']}K-{x['Marla']}M-{x['Sarshai']}S", axis=1)
+       df['Killa'] = conversions.apply(lambda x: x[0])
+       df['Kanal'] = conversions.apply(lambda x: x[1])
+       df['Marla'] = conversions.apply(lambda x: x[2])
+       df['Sarshai'] = conversions.apply(lambda x: x[3])
+      df['Result Text'] = df.apply(
+    lambda x: f"{x['Killa']}Ki-{x['Kanal']}K-{x['Marla']}M-{x['Sarshai']}S", axis=1
+)
 
         st.success("✅ Processed successfully!")
         st.dataframe(df, use_container_width=True)
