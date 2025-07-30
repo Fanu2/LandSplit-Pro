@@ -9,20 +9,20 @@ st.title("📐 Land Share and Ownership Split Calculator")
 # Helper to parse fraction string to float
 def parse_fraction(frac_str):
     try:
+        # Handle fractions like '1/2', '3/4'
         num, denom = map(int, re.findall(r'(\d+)', frac_str))
         return num / denom
-    except:
+    except Exception as e:
+        # Log error and return None if invalid
+        st.error(f"Error parsing fraction: {frac_str}. Error: {e}")
         return None
 
 # Helper to convert total marla to Kanal-Marla-Sarshai
 def marla_to_kms(total_marla):
-    total_kanal = total_marla / 20
-    killa = int(total_kanal // 8)
-    kanal = int(total_kanal % 8)
+    kanal = int(total_marla // 20)
     marla = int(total_marla % 20)
     sarshai = int(round((total_marla - int(total_marla)) * 9))
-    return killa, kanal, marla, sarshai
-
+    return kanal, marla, sarshai
 
 # User input for total area
 st.sidebar.header("Total Area Input")
@@ -52,18 +52,23 @@ if 'df' in locals():
     if not all(col in df.columns for col in expected_cols):
         st.error("The input data must contain at least 'Owners' and 'Fraction / Share' columns.")
     else:
+        # Apply the parsing of fraction values
         df['Share'] = df['Fraction / Share'].apply(parse_fraction)
+
+        # Check for any invalid fractions
+        if df['Share'].isnull().any():
+            st.warning("Some fractions could not be parsed correctly. Please check the input.")
+
         df['Total Marla Share'] = df['Share'] * total_marla
 
         # Convert marla share to K-M-S
         conversions = df['Total Marla Share'].apply(marla_to_kms)
-       df['Killa'] = conversions.apply(lambda x: x[0])
-       df['Kanal'] = conversions.apply(lambda x: x[1])
-       df['Marla'] = conversions.apply(lambda x: x[2])
-       df['Sarshai'] = conversions.apply(lambda x: x[3])
-      df['Result Text'] = df.apply(
-    lambda x: f"{x['Killa']}Ki-{x['Kanal']}K-{x['Marla']}M-{x['Sarshai']}S", axis=1
-)
+        df['Kanal'] = conversions.apply(lambda x: x[0])
+        df['Marla'] = conversions.apply(lambda x: x[1])
+        df['Sarshai'] = conversions.apply(lambda x: x[2])
+
+        # Create a formatted result text
+        df['Result Text'] = df.apply(lambda x: f"{x['Kanal']} K - {x['Marla']} M - {x['Sarshai']} S", axis=1)
 
         st.success("✅ Processed successfully!")
         st.dataframe(df, use_container_width=True)
