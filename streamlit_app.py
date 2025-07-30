@@ -1,78 +1,86 @@
 import streamlit as st
 import pandas as pd
-import io
 import re
 
 st.set_page_config(page_title="Land Share Calculator", layout="wide")
-st.title("📐 Land Share and Ownership Split Calculator")
+st.title("📐 Land Share and Ownership Split Calculator (with Killa)")
 
-# Helper to parse fraction string to float
+# --- Conversion Functions ---
+
 def parse_fraction(frac_str):
+    """Convert a string fraction like 1/8 to float"""
     try:
-        # Handle fractions like '1/2', '3/4'
-        num, denom = map(int, re.findall(r'(\d+)', frac_str))
+        num, denom = map(int, re.findall(r'(\d+)', str(frac_str)))
         return num / denom
-    except Exception as e:
-        # Log error and return None if invalid
-        st.error(f"Error parsing fraction: {frac_str}. Error: {e}")
+    except:
         return None
 
-# Helper to convert total marla to Kanal-Marla-Sarshai
 def marla_to_kms(total_marla):
-    kanal = int(total_marla // 20)
+    """Convert marla to Killa, Kanal, Marla, Sarshai"""
+    total_kanal = total_marla / 20
+    killa = int(total_kanal // 8)
+    kanal = int(total_kanal % 8)
     marla = int(total_marla % 20)
     sarshai = int(round((total_marla - int(total_marla)) * 9))
-    return kanal, marla, sarshai
+    return killa, kanal, marla, sarshai
 
-# User input for total area
+# --- Sidebar Input for Total Land Area ---
+
 st.sidebar.header("Total Area Input")
-kanal_input = st.sidebar.number_input("Kanal", min_value=0.0, step=1.0, value=0.0)
-marla_input = st.sidebar.number_input("Marla", min_value=0.0, max_value=19.99, step=1.0, value=0.0)
+kanal_input = st.sidebar.number_input("🧮 Kanal", min_value=0.0, step=1.0, value=0.0)
+marla_input = st.sidebar.number_input("📏 Marla", min_value=0.0, max_value=19.99, step=1.0, value=0.0)
+
 total_marla = kanal_input * 20 + marla_input
-st.sidebar.write(f"📏 Total Area in Marla: **{total_marla:.2f}**")
+st.sidebar.markdown(f"📌 **Total Area in Marla:** `{total_marla:.2f}`")
 
-# Input method
-input_method = st.radio("Choose data input method", ["Paste Table", "Upload Excel"])
+# --- Input Mode Selection ---
 
-if input_method == "Paste Table":
-    pasted_data = st.text_area("Paste Excel-style table here (e.g., from Excel)", height=200)
+input_mode = st.radio("Select Input Method", ["Paste Table", "Upload Excel"])
+
+df = None
+
+if input_mode == "Paste Table":
+    pasted_data = st.text_area("Paste Excel-style table here (tab-separated):", height=200)
     if pasted_data:
-        lines = pasted_data.strip().split("\n")
-        data = [re.split(r'\t+', line) for line in lines]
-        df = pd.DataFrame(data[1:], columns=data[0])
-elif input_method == "Upload Excel":
-    uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
+        try:
+            lines = pasted_data.strip().split("\n")
+            data = [re.split(r'\t+', line) for line in lines]
+            df = pd.DataFrame(data[1:], columns=data[0])
+        except:
+            st.error("⚠️ Error parsing pasted table. Please check format.")
+
+elif input_mode == "Upload Excel":
+    uploaded_file = st.file_uploader("Upload Excel file (.xlsx or .xls)", type=["xlsx", "xls"])
     if uploaded_file:
-        df = pd.read_excel(uploaded_file)
+        try:
+            df = pd.read_excel(uploaded_file)
+        except:
+            st.error("⚠️ Error reading Excel file.")
 
-# Process if data is ready
-if 'df' in locals():
-    # Ensure column names
-    expected_cols = ['Owners', 'Fraction / Share']
-    if not all(col in df.columns for col in expected_cols):
-        st.error("The input data must contain at least 'Owners' and 'Fraction / Share' columns.")
+# --- Process and Display Results ---
+
+if df is not None:
+    required_cols = ['Owners', 'Fraction / Share']
+    if not all(col in df.columns for col in required_cols):
+        st.error("⚠️ Input must contain 'Owners' and 'Fraction / Share' columns.")
     else:
-        # Apply the parsing of fraction values
+        # Calculate share and convert
         df['Share'] = df['Fraction / Share'].apply(parse_fraction)
-
-        # Check for any invalid fractions
-        if df['Share'].isnull().any():
-            st.warning("Some fractions could not be parsed correctly. Please check the input.")
-
         df['Total Marla Share'] = df['Share'] * total_marla
 
-        # Convert marla share to K-M-S
-        conversions = df['Total Marla Share'].apply(marla_to_kms)
-        df['Kanal'] = conversions.apply(lambda x: x[0])
-        df['Marla'] = conversions.apply(lambda x: x[1])
-        df['Sarshai'] = conversions.apply(lambda x: x[2])
+        # Convert to Killa-Kanal-Marla-Sarshai
+        converted = df['Total Marla Share'].apply(marla_to_kms)
+        df['Killa'] = converted.apply(lambda x: x[0])
+        df['Kanal'] = converted.apply(lambda x: x[1])
+        df['Marla'] = converted.apply(lambda x: x[2])
+        df['Sarshai'] = converted.apply(lambda x: x[3])
 
-        # Create a formatted result text
-        df['Result Text'] = df.apply(lambda x: f"{x['Kanal']} K - {x['Marla']} M - {x['Sarshai']} S", axis=1)
+        df['Result Text'] = df.apply(
+            lambda row: f"{row['Killa']}Ki-{row['Kanal']}K-{row['Marla']}M-{row['Sarshai']}S", axis=1
+        )
 
-        st.success("✅ Processed successfully!")
+        st.success("✅ Share calculation completed successfully!")
         st.dataframe(df, use_container_width=True)
 
-        # Download button
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("⬇️ Download as CSV", csv, file_name="land_share_output.csv", mime="text/csv")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Download CSV", csv, "land_share_result.csv", mime="text/csv")
